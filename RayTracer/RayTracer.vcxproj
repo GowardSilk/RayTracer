@@ -131,6 +131,7 @@
     <ClCompile Include="RayTracer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Adrenaline.hpp" />
     <ClInclude Include="Camera.hpp" />
     <ClInclude Include="Color.hpp" />
     <ClInclude Include="Hittable.hpp" />
