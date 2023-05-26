@@ -14,6 +14,9 @@ using UINT = unsigned int;
 
 #ifdef KERNEL
 	#include <CL/cl2.hpp>
+#elif defined(SYCL)
+	#include <SYCL/sycl.hpp>
+	namespace sycl = cl::sycl;
 #else
 	#ifdef ENABLE_OMP
 		#include <omp.h>
@@ -120,12 +123,11 @@ namespace raytracer {
 	public:
 
 #ifdef KERNEL
-
-#ifdef ENABLE_KERNEL_CPU
-#define CL_DEVICE_T CL_DEVICE_TYPE_CPU
-#elif defined(ENABLE_KERNEL_GPU)
-#define CL_DEVICE_T CL_DEVICE_TYPE_GPU
-#endif
+	#ifdef ENABLE_KERNEL_CPU
+	#define CL_DEVICE_T CL_DEVICE_TYPE_CPU
+	#elif defined(ENABLE_KERNEL_GPU)
+	#define CL_DEVICE_T CL_DEVICE_TYPE_GPU
+	#endif
 
 	public:
 
@@ -219,6 +221,46 @@ namespace raytracer {
 
 		}
 		//!InitOpenCL
+
+#elif defined(SYCL)
+/* NOTE THAT THIS ONLY WORKS FOR NVIDIA AND INTEL!! */
+
+		[[noreturn]]
+		void initSycl(std::vector<color>& buff) {
+			// this should be fine, it should find GPU automatically (the most performent device)
+			sycl::gpu_selector device_selector;
+			sycl::device device = device_selector.select_device();
+			std::cerr << device.get_info<sycl::info::device::name>();
+
+			sycl::queue queue(device_selector);
+
+			STATS_DESCRIPTOR sdesc = m_stats.get_descriptor();
+
+			{
+				sycl::buffer<color, 1> buf(buff.data(), sycl::range<1>(sdesc.img_size()));
+				queue.submit([&](sycl::handler& cgh) {
+					auto acc = buf.get_access<sycl::access::mode::write>(cgh);
+
+					cgh.parallel_for(
+						sycl::range<1>(sdesc.image_height),
+						[=](sycl::item<1> item) {
+							size_t j = item.get_linear_id();
+
+							for (int i = 0; i < sdesc.image_width; ++i) {
+								color pixel_color{ 0, 0, 0 };
+								for (int s = 0; s < sdesc.samples_per_pixel; ++s) {
+									auto u = (i + random_double()) / (sdesc.image_width - 1);
+									auto v = (j + random_double()) / (sdesc.image_height - 1);
+									ray r = m_adesc.cam.get_ray(u, v);
+									pixel_color += ray_color(r, m_adesc.world, sdesc.max_depth);
+								}
+								acc[j * sdesc.image_width + i] = pixel_color;
+							}
+						});
+					});
+			}
+		}
+
 #else
 	#if defined(MT)
 		#ifdef PAR_RENDER_WRITE

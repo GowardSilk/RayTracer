@@ -4,8 +4,9 @@
 //#define PAR_RENDER_WRITE
 
 //#define KERNEL
-//	#define ENABLE_KERNEL_GPU
+	//#define ENABLE_KERNEL_GPU
 	//#define ENABLE_KERNEL_CPU
+#define SYCL
 
 #include "Adrenaline.hpp"
 #include "Sphere.hpp"
@@ -22,7 +23,7 @@ auto main() -> int {
 	sdesc.image_height = static_cast<int>(sdesc.image_width / sdesc.aspect_ratio);
 	sdesc.samples_per_pixel = 100;
 	sdesc.max_depth = 50;
-	sdesc.measurements.iteration_count = 10;
+	sdesc.measurements.iteration_count = 0;
 	sdesc.measurements.elapsed = std::vector<double>(sdesc.measurements.iteration_count);
 
 	// World setup
@@ -51,7 +52,10 @@ auto main() -> int {
 	adrenaline adr(adesc, sdesc);
 #ifdef KERNEL
 	adr.initOpenCL();
-#else
+#elif defined(SYCL)
+	std::vector<color> buff(sdesc.img_size());
+	adr.initSycl(buff);
+#else // pure C++
 	#ifndef PAR_RENDER_WRITE
 		color* img_buff = new color[sdesc.img_size()];
 		std::fill(img_buff, img_buff + sdesc.img_size(), color{ 0, 0, 0 });
